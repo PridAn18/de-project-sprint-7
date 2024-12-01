@@ -2,18 +2,18 @@ import sys
 from pyspark import SparkContext, SparkConf
 from pyspark.sql import SQLContext
 from pyspark.sql import functions as F
-from pyspark.sql.types import StringType, FloatType
+from pyspark.sql.types import StructType, StructField, IntegerType, StringType, DoubleType, FloatType
 from pyspark.sql.functions import udf
+import logging
 import math
-from pyspark.logger import PySparkLogger
+
 
 def main():
-    logger = PySparkLogger.getLogger()
+    logger = logging.getLogger(__name__)
     events_base_path = sys.argv[1]
     date = sys.argv[2]
     geo_base_path = sys.argv[3]
     output_base_path = sys.argv[4]
-    
     sc = SparkContext.getOrCreate(SparkConf().setAppName(f"RecommendationsJob").set("spark.sql.legacy.timeParserPolicy", "LEGACY"))
     sql = SQLContext(sc)
     
@@ -29,7 +29,15 @@ def main():
     messages_df = messages_df.select("user_from", "user_to", F.to_timestamp("timestamp", 'yyyy-MM-dd HH:mm:ss').alias("timestamp"), "lat", "lon")
 
     logger.info('Чтение нового файла с городами и таймзонами')
-    cities_df = sql.read.csv(f'{geo_base_path}', header=True, sep=';', inferSchema=True)
+    schema = StructType([
+    StructField("_c0", IntegerType(), True),  # id
+    StructField("_c1", StringType(), True),   # city
+    StructField("_c2", DoubleType(), True),   # lat
+    StructField("_c3", DoubleType(), True),   # lng
+    StructField("_c4", StringType(), True)    # timezone
+    ])
+    cities_df = sql.read.csv(f'{geo_base_path}', schema=schema)
+    cities_df = cities_df.select(F.col('_c0').alias("id"),F.col('_c1').alias("city"),F.col('_c2').alias("lat"),F.col('_c3').alias("lng"),F.col('_c4').alias("timezone"))
     logger.info('Cоздание списка городов')
     cities_list = cities_df.select("city", "lat", "lng").collect()
     
