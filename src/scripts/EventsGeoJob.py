@@ -15,7 +15,7 @@ def main():
     output_base_path = sys.argv[4]
     
 
-    sc = SparkContext.getOrCreate(SparkConf().setAppName(f"EventGeoJob").set("spark.sql.legacy.timeParserPolicy", "LEGACY"))
+    sc = SparkContext.getOrCreate(SparkConf().setAppName(f"EventsGeoJob").set("spark.sql.legacy.timeParserPolicy", "LEGACY"))
     sql = SQLContext(sc)
     events_df = sql.read.parquet(f'{events_base_path}/date={date}')
 
@@ -77,6 +77,8 @@ def main():
     events_with_city_df = final_events_df.withColumn("city", get_city_udf(F.col("lat").cast("float"), F.col("lon").cast("float")))
     events_with_city_df = events_with_city_df.withColumn("month", F.month(F.col("timestamp"))).withColumn("week", F.weekofyear(F.col("timestamp")))
     events_with_city_df = events_with_city_df.join(cities_df, events_with_city_df.city == cities_df.city, "left").drop(cities_df.city,cities_df.lat,cities_df.lng,events_with_city_df.timestamp,events_with_city_df.lat,events_with_city_df.lon,events_with_city_df.city,cities_df.timezone)
+    result_df = events_with_city_df.select(F.col('id').alias("zone_id"), 'month', 'week', 'event_type')
+    result_df.show(10)
     result_df = events_with_city_df.groupBy("month", "week", "id").agg(
         F.count(F.when(F.col("event_type") == "message", True)).alias("week_message"),
         F.count(F.when(F.col("event_type") == "reaction", True)).alias("week_reaction"),
